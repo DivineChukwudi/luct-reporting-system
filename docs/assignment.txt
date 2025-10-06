@@ -1,0 +1,61 @@
+Assignment Description
+The goal of this assignment is to design and develop a web based reporting
+application for LUCT in the faculty.
+Data Entry (Lecturer Reporting Form)
+Lecturers must be able to insert the following information:
+ Faculty Name
+ Class Name
+ Week of Reporting
+ Date of Lecture
+ Course Name
+ Course Code
+ Lecturer’s Name
+ Actual Number of Students Present
+ Total Number of Registered Students (should be displayed automatically or
+entered once and retrieved later)
+ Venue of the Class
+ Scheduled Lecture Time
+ Topic Taught
+ Learning Outcomes of the Topic
+ Lecturer’s Recommendations
+
+System Modules
+
+1. Student:
+o Login / Register
+o Monitoring
+o Rating
+2. Lecturer:
+o Classes
+o Reports
+o Monitoring
+o Rating
+3. Principal Lecturer[PRL]:
+o Courses [ view all courses &amp; lectures under his stream]
+o Reports [ view lectures reports &amp; add feedback]
+o Monitoring
+o Rating
+o Classes
+4. Program Leader[PL]:
+o Courses [ add, assign lectures modules]
+o Reports [ view reports from PRL]
+o Monitoring
+o Classes
+o Lectures
+o Rating
+5. Technology Stack:
+ Frontend: React, CSS, Bootstrap
+ Backend: Node JS
+ Database: SQL / XAMPP
+
+Marking Criteria
+Front End 40
+Backend 40
+Code Quality 20
+Total 100
+SUBMISSION INFORMATION
+- Push your project to GitHub and submit a link to the classroom
+- Host the application and submit a link to the classroom
+Challeng / Extra credit (10)
+- Implement a search functionality for every module
+- Generate downloadable reports in Excel format
