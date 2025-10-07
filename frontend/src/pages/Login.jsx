@@ -179,7 +179,7 @@ export default function Login({ setUser }) {
         <div className="login-header">
           <h1 style={{ textAlign: "center", marginBottom: 0 }}>LUCT Reporting System</h1>
           <p style={{ textAlign: "center", fontStyle: "italic", color: "#2e7d32", marginTop: 0 }}>
-            "Empowering students and lecturers to connect, report, and grow together."
+            "Empowerment builds nations."
           </p>
         </div>
 
