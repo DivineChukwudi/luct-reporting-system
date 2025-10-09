@@ -175,7 +175,6 @@ export default function ProgramLeader({ user }) {
     <div className="page-container">
       <h1>Program Leader Portal</h1>
       <div className="welcome-section">
-        <div className="welcome-icon">🖐🏾</div>
         <div>
           <p className="welcome-text">
             Welcome, <span>{user.username}</span>
@@ -420,7 +419,7 @@ export default function ProgramLeader({ user }) {
                 fontWeight: '600'
               }}
             >
-              📥 Export to Excel
+              Export to Excel
             </button>
           </div>
 
