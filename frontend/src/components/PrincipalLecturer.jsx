@@ -245,7 +245,6 @@ export default function PrincipalLecturer({ user }) {
     <div className="page-container">
       <h1>Principal Lecturer Portal</h1>
       <div className="welcome-section">
-        <div className="welcome-icon">👋🏾</div>
         <div>
           <p className="welcome-text">
             Welcome, <span>{user.lecturer_info?.name} {user.lecturer_info?.surname}</span>
@@ -298,7 +297,7 @@ export default function PrincipalLecturer({ user }) {
                 fontWeight: '600'
               }}
             >
-              📥 Export to Excel
+              Export to Excel
             </button>
           </div>
 
