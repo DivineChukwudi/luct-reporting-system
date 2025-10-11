@@ -1,4 +1,4 @@
-﻿// frontend/src/pages/Login.jsx
+// frontend/src/pages/Login.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { FaEye, FaEyeSlash, FaArrowLeft } from "react-icons/fa";
@@ -17,18 +17,23 @@ export default function Login({ setUser }) {
   const [showRegister, setShowRegister] = useState(false);
   const [role, setRole] = useState("student");
 
+  // CRITICAL: Clear user state immediately when component mounts
+  // This runs synchronously before any rendering
+  useEffect(() => {
+    // Clear all storage
+    localStorage.clear();
+    sessionStorage.clear();
+    
+    // Immediately set user to null
+    setUser(null);
+  }, []); // Empty dependency array - runs only once on mount
+
   // Check if we should show register form from navigation state
   useEffect(() => {
     if (location.state?.showRegister) {
       setShowRegister(true);
     }
   }, [location.state]);
-
-  useEffect(() => {
-    localStorage.clear();
-    sessionStorage.clear();
-    setUser(null);
-  }, [setUser]);
 
   const [registerData, setRegisterData] = useState({
     name: "",
