@@ -137,7 +137,7 @@ export default function LandingDashboard() {
           <h2 className="section-heading">About Limkokwing University Lesotho</h2>
           <div className="university-content">
             <p className="university-description">
-              Limkokwing University of Creative Technology (LUCT) is a private international university with a presence 
+              Limkokwing University of Creative Technology (LUCT) is part of a private international university with a presence 
               across Africa, Europe, and Asia. The Lesotho campus is committed to providing world-class education in 
               creative arts, technology, and business.
             </p>
