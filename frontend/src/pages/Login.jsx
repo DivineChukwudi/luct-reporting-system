@@ -1,14 +1,14 @@
-﻿import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { FaEye, FaEyeSlash, FaLinkedin, FaGithub, FaEnvelope } from "react-icons/fa";
+﻿// frontend/src/pages/Login.jsx
+import React, { useState, useEffect } from "react";
+import { useNavigate, useLocation, Link } from "react-router-dom";
+import { FaEye, FaEyeSlash, FaArrowLeft } from "react-icons/fa";
 import "./Login.css";
 import API_BASE_URL from '../config/api';
 import regSuccessGif from "../assets/reg-succ.gif";
 
 export default function Login({ setUser }) {
- 
-
   const navigate = useNavigate();
+  const location = useLocation();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -16,6 +16,13 @@ export default function Login({ setUser }) {
   const [error, setError] = useState("");
   const [showRegister, setShowRegister] = useState(false);
   const [role, setRole] = useState("student");
+
+  // Check if we should show register form from navigation state
+  useEffect(() => {
+    if (location.state?.showRegister) {
+      setShowRegister(true);
+    }
+  }, [location.state]);
 
   useEffect(() => {
     localStorage.clear();
@@ -48,12 +55,9 @@ export default function Login({ setUser }) {
           const streamsRes = await fetch(API_BASE_URL + "/api/streams-public");
           const streamsData = await streamsRes.json();
           
-          console.log("Streams response:", streamsData); // Debug log
-          
           if (streamsData.success && Array.isArray(streamsData.streams)) {
             setStreams(streamsData.streams);
           } else if (Array.isArray(streamsData)) {
-            // In case the API returns streams directly as an array
             setStreams(streamsData);
           } else {
             setStreams([]);
@@ -89,7 +93,7 @@ export default function Login({ setUser }) {
           case "prl": navigate("/prl"); break;
           case "pl": navigate("/pl"); break;
           case "admin": navigate("/admin"); break;
-          default: navigate("/dashboard");
+          default: navigate("/");
         }
       } else {
         setError(data.message || "Invalid username or password");
@@ -113,7 +117,6 @@ export default function Login({ setUser }) {
     e.preventDefault();
     setRegisterMessage("");
     
-    // Validation for non-student roles
     if (role !== "student" && registerData.faculties.length === 0) {
       setRegisterMessage("Please select at least one stream");
       return;
@@ -142,7 +145,7 @@ export default function Login({ setUser }) {
               faculties: registerData.faculties.map((id) => parseInt(id, 10)),
             };
 
-      const res = await fetch(API_BASE_URL + "" + endpoint, {
+      const res = await fetch(API_BASE_URL + endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -154,6 +157,8 @@ export default function Login({ setUser }) {
         setTimeout(() => {
           setShowAnimation(false);
           setShowRegister(false);
+          // Clear navigation state
+          navigate('/login', { replace: true, state: {} });
         }, 2000);
         setRegisterData({
           name: "",
@@ -176,9 +181,15 @@ export default function Login({ setUser }) {
   return (
     <div className="app-container">
       <div className={`login-page ${showRegister ? "show-register" : ""}`}>
+        
+        {/* Back to Home Button */}
+        <Link to="/" className="back-to-home">
+          <FaArrowLeft /> Back to Home
+        </Link>
+
         <div className="login-header">
           <h1 style={{ textAlign: "center", marginBottom: 0 }}>LUCT Reporting System</h1>
-          <p style={{ textAlign: "center", fontStyle: "italic", color: "#2e7d32", marginTop: 0 }}>
+          <p style={{ textAlign: "center", fontStyle: "italic", color: "#f2b632", marginTop: 0 }}>
             "Empowerment builds nations."
           </p>
         </div>
@@ -280,39 +291,10 @@ export default function Login({ setUser }) {
         <p
           className="toggle-register"
           onClick={() => setShowRegister((s) => !s)}
-          style={{ marginTop: "1.5rem", marginBottom: "0.5rem", textAlign: "center", fontWeight: "bold", fontSize: "1.1rem" }}
+          style={{ marginTop: "1.5rem", marginBottom: "0.5rem", textAlign: "center", fontWeight: "bold", fontSize: "1.1rem", cursor: "pointer" }}
         >
           {showRegister ? "Back to Login" : "Don't have an account? Register"}
         </p>
-
-        <div className="info-cards-row">
-          <div className="info-card">
-            <h2>About This Web App</h2>
-            <p>
-              The LUCT Reporting System is a digital platform designed to streamline academic monitoring, feedback, and support for students and staff.
-            </p>
-          </div>
-          <div className="info-card">
-            <h2>Key Features</h2>
-            <ul>
-              <li><b>Student Portal:</b> Mark attendance, submit complaints/reports, and rate lecturers/modules.</li>
-              <li><b>Lecturer Portal:</b> Manage attendance, respond to complaints, monitor ratings.</li>
-              <li><b>Leaders:</b> Ensure academic quality through feedback and reporting.</li>
-            </ul>
-          </div>
-          <div className="info-card">
-            <h2>How It Works</h2>
-            <p>
-              Register or login. Dashboards show modules and lecturers tied to your stream, with secure role-based access.
-            </p>
-          </div>
-          <div className="info-card">
-            <h2>Security & Privacy</h2>
-            <p>
-              All data is protected and only accessible to authorized roles. Your information is never shared outside the university.
-            </p>
-          </div>
-        </div>
 
         {showAnimation && (
           <div className="registration-success-animation">
@@ -321,8 +303,6 @@ export default function Login({ setUser }) {
           </div>
         )}
       </div>
-
-     
     </div>
   );
 }

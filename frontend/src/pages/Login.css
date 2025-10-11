@@ -470,3 +470,54 @@
   height: 5px;
   background: #ED1C24;
 }
+/* Add this to your existing frontend/src/pages/Login.css file */
+
+/* Back to Home Button */
+.back-to-home {
+  position: absolute;
+  top: 2rem;
+  left: 2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #ffffff;
+  text-decoration: none;
+  background: rgba(237, 28, 36, 0.1);
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  z-index: 100;
+  border: 1px solid #ED1C24;
+  letter-spacing: 0.5px;
+  font-size: 0.9rem;
+  height: 38px;
+}
+
+.back-to-home:hover {
+  background-color: #ED1C24;
+  border-color: #ED1C24;
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(237, 28, 36, 0.3);
+}
+
+.back-to-home:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.app-container {
+  position: relative;
+  min-height: 100vh;
+}
+
+/* Responsive adjustment for back button */
+@media (max-width: 768px) {
+  .back-to-home {
+    top: 1rem;
+    left: 1rem;
+    padding: 6px 12px;
+    font-size: 0.85rem;
+  }
+}

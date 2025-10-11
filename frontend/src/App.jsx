@@ -1,8 +1,9 @@
-// src/App.jsx
+// frontend/src/App.jsx
 import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 
 import Navbar from "./components/Navbar";
+import LandingDashboard from "./pages/LandingDasboard";
 import Login from "./pages/Login";
 import StudentPage from "./components/StudentPage";
 import LecturerPage from "./components/LecturerPage";
@@ -11,12 +12,8 @@ import ProgramLeader from "./components/ProgramLeader";
 import AdminPage from "./components/AdminPage";
 import ClassesList from "./components/ClassesList";
 import ClassDetail from "./components/ClassDetail";
-import { FaLinkedin, FaGithub, FaEnvelope } from "react-icons/fa";
 
 export default function App() {
-  const linkedinUrl = "https://www.linkedin.com/in/divinechukwudi";
-  const githubUrl = "https://github.com/DivineChukwudi";
-  const gmailUrl = "mailto:chukwudidivine20@gmail.com";
   // ==================== USER STATE ====================
   const [user, setUser] = useState(() => {
     try {
@@ -52,17 +49,24 @@ export default function App() {
 
   // ==================== PROTECTED ROUTE ====================
   function ProtectedRoute({ user, allowedRoles, children }) {
-    if (!user) return <Navigate to="/" replace />;
-    if (!allowedRoles.includes(user.role)) return <Navigate to="/" replace />;
+    if (!user) return <Navigate to="/login" replace />;
+    if (!allowedRoles.includes(user.role)) return <Navigate to="/login" replace />;
     return children;
   }
 
   return (
     <Router>
+      {/* Only show Navbar when user is logged in and not on landing/login page */}
       {user && <Navbar setUser={logout} />}
+      
       <Routes>
-        <Route path="/" element={<Login setUser={setUser} />} />
+        {/* Landing Dashboard - Default Route */}
+        <Route path="/" element={<LandingDashboard />} />
+        
+        {/* Login Route */}
+        <Route path="/login" element={<Login setUser={setUser} />} />
 
+        {/* Student Routes */}
         <Route
           path="/student"
           element={
@@ -72,6 +76,7 @@ export default function App() {
           }
         />
 
+        {/* Lecturer Routes */}
         <Route
           path="/lecturer"
           element={
@@ -81,6 +86,7 @@ export default function App() {
           }
         />
 
+        {/* Principal Lecturer Routes */}
         <Route
           path="/prl"
           element={
@@ -90,6 +96,7 @@ export default function App() {
           }
         />
 
+        {/* Program Leader Routes */}
         <Route
           path="/pl"
           element={
@@ -99,6 +106,7 @@ export default function App() {
           }
         />
 
+        {/* Admin Routes */}
         <Route
           path="/admin"
           element={
@@ -108,6 +116,7 @@ export default function App() {
           }
         />
 
+        {/* Classes Routes */}
         <Route
           path="/classes"
           element={
@@ -126,19 +135,9 @@ export default function App() {
           }
         />
 
-        <Route path="*" element={<Navigate to={user ? "/student" : "/"} replace />} />
+        {/* Catch all - redirect to landing */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-       <footer className="login-footer">
-        <div className="footer-copy">
-          &copy; {new Date().getFullYear()} LUCT Reporting System. All rights reserved | System designed by etern.pptx
-        </div>
-        <div className="footer-links">
-          <a href={linkedinUrl} target="_blank" rel="noopener noreferrer"><FaLinkedin /> LinkedIn</a>
-          <a href={githubUrl} target="_blank" rel="noopener noreferrer"><FaGithub /> GitHub</a>
-          <a href={gmailUrl} target="_blank" rel="noopener noreferrer"><FaEnvelope /> Gmail</a>
-        </div>
-      </footer>
     </Router>
-    
   );
 }
