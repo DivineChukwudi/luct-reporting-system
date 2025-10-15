@@ -1193,6 +1193,346 @@ app.delete("/api/users/:id", authenticateToken, checkRole(["admin"]), async (req
   }
 });
 
+// ADD THESE ENDPOINTS TO YOUR server.js file
+
+// CREATE NEW STREAM (Program Leader)
+app.post("/api/pl/streams", authenticateToken, checkRole(["pl"]), async (req, res) => {
+  const { name } = req.body;
+  
+  try {
+    if (!name || name.trim() === '') {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Stream name is required" 
+      });
+    }
+
+    const result = await pool.query(
+      "INSERT INTO streams (name) VALUES ($1) RETURNING id, name",
+      [name.trim()]
+    );
+
+    res.json({ 
+      success: true, 
+      message: "Stream created successfully",
+      stream: result.rows[0]
+    });
+  } catch (err) {
+    console.error("Error creating stream:", err);
+    if (err.code === "23505") {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Stream name already exists" 
+      });
+    }
+    res.status(500).json({ 
+      success: false, 
+      message: "Error creating stream" 
+    });
+  }
+});
+
+// UPDATE STREAM (Program Leader)
+app.put("/api/pl/streams/:id", authenticateToken, checkRole(["pl"]), async (req, res) => {
+  const { id } = req.params;
+  const { name } = req.body;
+  
+  try {
+    if (!name || name.trim() === '') {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Stream name is required" 
+      });
+    }
+
+    const result = await pool.query(
+      "UPDATE streams SET name = $1 WHERE id = $2 RETURNING id, name",
+      [name.trim(), id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "Stream not found" 
+      });
+    }
+
+    res.json({ 
+      success: true, 
+      message: "Stream updated successfully",
+      stream: result.rows[0]
+    });
+  } catch (err) {
+    console.error("Error updating stream:", err);
+    if (err.code === "23505") {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Stream name already exists" 
+      });
+    }
+    res.status(500).json({ 
+      success: false, 
+      message: "Error updating stream" 
+    });
+  }
+});
+
+// DELETE STREAM (Program Leader)
+app.delete("/api/pl/streams/:id", authenticateToken, checkRole(["pl"]), async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    // Check if stream has associated modules
+    const moduleCheck = await pool.query(
+      "SELECT COUNT(*) as count FROM modules WHERE stream_id = $1",
+      [id]
+    );
+
+    if (parseInt(moduleCheck.rows[0].count) > 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Cannot delete stream with associated modules. Delete modules first." 
+      });
+    }
+
+    // Check if stream has associated lecturers
+    const lecturerCheck = await pool.query(
+      "SELECT COUNT(*) as count FROM lecturers WHERE stream_id = $1",
+      [id]
+    );
+
+    if (parseInt(lecturerCheck.rows[0].count) > 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Cannot delete stream with associated lecturers" 
+      });
+    }
+
+    const result = await pool.query(
+      "DELETE FROM streams WHERE id = $1 RETURNING id",
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "Stream not found" 
+      });
+    }
+
+    res.json({ 
+      success: true, 
+      message: "Stream deleted successfully" 
+    });
+  } catch (err) {
+    console.error("Error deleting stream:", err);
+    res.status(500).json({ 
+      success: false, 
+      message: "Error deleting stream" 
+    });
+  }
+});
+
+// CREATE NEW MODULE (Program Leader)
+app.post("/api/pl/modules", authenticateToken, checkRole(["pl"]), async (req, res) => {
+  const { name, code, stream_id } = req.body;
+  
+  try {
+    if (!name || !code || !stream_id) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Module name, code, and stream are required" 
+      });
+    }
+
+    // Verify stream exists
+    const streamCheck = await pool.query(
+      "SELECT id FROM streams WHERE id = $1",
+      [stream_id]
+    );
+
+    if (streamCheck.rows.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Invalid stream selected" 
+      });
+    }
+
+    const result = await pool.query(
+      "INSERT INTO modules (name, code, stream_id) VALUES ($1, $2, $3) RETURNING id, name, code, stream_id",
+      [name.trim(), code.trim().toUpperCase(), stream_id]
+    );
+
+    res.json({ 
+      success: true, 
+      message: "Module created successfully",
+      module: result.rows[0]
+    });
+  } catch (err) {
+    console.error("Error creating module:", err);
+    if (err.code === "23505") {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Module code already exists" 
+      });
+    }
+    res.status(500).json({ 
+      success: false, 
+      message: "Error creating module" 
+    });
+  }
+});
+
+// UPDATE MODULE (Program Leader)
+app.put("/api/pl/modules/:id", authenticateToken, checkRole(["pl"]), async (req, res) => {
+  const { id } = req.params;
+  const { name, code, stream_id } = req.body;
+  
+  try {
+    if (!name || !code || !stream_id) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Module name, code, and stream are required" 
+      });
+    }
+
+    // Verify stream exists
+    const streamCheck = await pool.query(
+      "SELECT id FROM streams WHERE id = $1",
+      [stream_id]
+    );
+
+    if (streamCheck.rows.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Invalid stream selected" 
+      });
+    }
+
+    const result = await pool.query(
+      "UPDATE modules SET name = $1, code = $2, stream_id = $3 WHERE id = $4 RETURNING id, name, code, stream_id",
+      [name.trim(), code.trim().toUpperCase(), stream_id, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "Module not found" 
+      });
+    }
+
+    res.json({ 
+      success: true, 
+      message: "Module updated successfully",
+      module: result.rows[0]
+    });
+  } catch (err) {
+    console.error("Error updating module:", err);
+    if (err.code === "23505") {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Module code already exists" 
+      });
+    }
+    res.status(500).json({ 
+      success: false, 
+      message: "Error updating module" 
+    });
+  }
+});
+
+// DELETE MODULE (Program Leader)
+app.delete("/api/pl/modules/:id", authenticateToken, checkRole(["pl"]), async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    // Check if module is assigned to any lecturers
+    const lecturerCheck = await pool.query(
+      "SELECT COUNT(*) as count FROM lecturers WHERE module_id = $1",
+      [id]
+    );
+
+    if (parseInt(lecturerCheck.rows[0].count) > 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Cannot delete module that is assigned to lecturers" 
+      });
+    }
+
+    const result = await pool.query(
+      "DELETE FROM modules WHERE id = $1 RETURNING id",
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "Module not found" 
+      });
+    }
+
+    res.json({ 
+      success: true, 
+      message: "Module deleted successfully" 
+    });
+  } catch (err) {
+    console.error("Error deleting module:", err);
+    res.status(500).json({ 
+      success: false, 
+      message: "Error deleting module" 
+    });
+  }
+});
+
+// GET ALL STREAMS FOR PROGRAM LEADER
+app.get("/api/pl/streams", authenticateToken, checkRole(["pl"]), async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        s.id,
+        s.name,
+        COUNT(DISTINCT m.id) as module_count,
+        COUNT(DISTINCT l.id) as lecturer_count
+      FROM streams s
+      LEFT JOIN modules m ON m.stream_id = s.id
+      LEFT JOIN lecturers l ON l.stream_id = s.id
+      GROUP BY s.id, s.name
+      ORDER BY s.name ASC
+    `);
+
+    res.json({ success: true, streams: result.rows });
+  } catch (err) {
+    console.error("Error fetching streams:", err);
+    res.status(500).json({ success: false, message: "Error fetching streams" });
+  }
+});
+
+// GET ALL MODULES FOR PROGRAM LEADER
+app.get("/api/pl/modules", authenticateToken, checkRole(["pl"]), async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        m.id,
+        m.name,
+        m.code,
+        m.stream_id,
+        s.name as stream_name,
+        COUNT(l.id) as assigned_lecturers
+      FROM modules m
+      JOIN streams s ON m.stream_id = s.id
+      LEFT JOIN lecturers l ON l.module_id = m.id
+      GROUP BY m.id, m.name, m.code, m.stream_id, s.name
+      ORDER BY s.name, m.code ASC
+    `);
+
+    res.json({ success: true, modules: result.rows });
+  } catch (err) {
+    console.error("Error fetching modules:", err);
+    res.status(500).json({ success: false, message: "Error fetching modules" });
+  }
+});
+
+
 // LECTURER PROGRAMS
 app.get("/api/lecturer/programs", authenticateToken, checkRole(["lecturer"]), async (req, res) => {
   try {
