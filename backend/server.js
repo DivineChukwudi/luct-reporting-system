@@ -236,7 +236,6 @@ app.get("/api/lecturer/faculties", authenticateToken, checkRole(["lecturer"]), a
   }
 });
 
-
 // LECTURER ATTENDANCE
 app.get("/api/lecturer/attendance", authenticateToken, checkRole(["lecturer"]), async (req, res) => {
   const { startDate, endDate } = req.query;
@@ -557,10 +556,35 @@ app.get("/api/ratings/prl", authenticateToken, checkRole(["prl"]), async (req, r
 
 app.get("/api/ratings/pl/prls", authenticateToken, checkRole(["pl"]), async (req, res) => {
   try {
+    const result = await pool.query(
+      `SELECT 
+        l.id as prl_id,
+        l.name as prl_name,
+        l.surname as prl_surname,
+        s.name as stream_name,
+        AVG(pr.rating) as average_rating,
+        COUNT(pr.id) as total_ratings,
+        json_agg(
+          json_build_object(
+            'rating', pr.rating,
+            'comments', pr.comments,
+            'lecturer_name', lec.name || ' ' || lec.surname,
+            'submitted_at', pr.created_at
+          ) ORDER BY pr.created_at DESC
+        ) FILTER (WHERE pr.id IS NOT NULL) as ratings
+       FROM lecturers l
+       JOIN users u ON l.username = u.username
+       JOIN streams s ON l.stream_id = s.id
+       LEFT JOIN prl_ratings pr ON pr.prl_id = l.id
+       LEFT JOIN lecturers lec ON pr.lecturer_id = lec.id
+       WHERE u.role = 'prl'
+       GROUP BY l.id, l.name, l.surname, s.name
+       ORDER BY average_rating DESC NULLS LAST`
+    );
+
     res.json({ 
       success: true, 
-      ratings: [],
-      summary: []
+      ratings: result.rows
     });
   } catch (err) {
     console.error("Error fetching PRL ratings:", err);
@@ -759,10 +783,8 @@ app.get("/api/reports", authenticateToken, async (req, res) => {
       `;
       params = [req.user.username];
     } else if (req.user.role === 'pl') {
-      // Program Leader sees all reports
       query = "SELECT * FROM reports ORDER BY submitted_at DESC";
     } else {
-      // Admin sees all reports
       query = "SELECT * FROM reports ORDER BY submitted_at DESC";
     }
 
@@ -803,6 +825,62 @@ app.post("/api/reports/:id/feedback", authenticateToken, checkRole(["prl"]), asy
     res.json({ success: true, message: "Feedback added" });
   } catch (err) {
     res.status(500).json(err);
+  }
+});
+
+// DELETE REPORT
+app.delete("/api/reports/:id", authenticateToken, checkRole(["admin", "lecturer", "prl"]), async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    if (req.user.role === 'lecturer') {
+      const lecturerResult = await pool.query(
+        "SELECT l.name || ' ' || l.surname as full_name FROM lecturers WHERE username=$1",
+        [req.user.username]
+      );
+      
+      if (lecturerResult.rows.length === 0) {
+        return res.status(404).json({ success: false, message: "Lecturer not found" });
+      }
+      
+      const reportCheck = await pool.query(
+        "SELECT id FROM reports WHERE id=$1 AND lecturername=$2",
+        [id, lecturerResult.rows[0].full_name]
+      );
+      
+      if (reportCheck.rows.length === 0) {
+        return res.status(403).json({ success: false, message: "Not authorized to delete this report" });
+      }
+    }
+    
+    if (req.user.role === 'prl') {
+      const prlResult = await pool.query(
+        "SELECT stream_id FROM lecturers WHERE username=$1",
+        [req.user.username]
+      );
+      
+      if (prlResult.rows.length === 0) {
+        return res.status(404).json({ success: false, message: "PRL not found" });
+      }
+      
+      const reportCheck = await pool.query(
+        `SELECT r.id FROM reports r
+         JOIN streams s ON r.facultyname = s.name
+         WHERE r.id=$1 AND s.id=$2`,
+        [id, prlResult.rows[0].stream_id]
+      );
+      
+      if (reportCheck.rows.length === 0) {
+        return res.status(403).json({ success: false, message: "Not authorized to delete this report" });
+      }
+    }
+    
+    await pool.query("DELETE FROM reports WHERE id=$1", [id]);
+    
+    res.json({ success: true, message: "Report deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting report:", err);
+    res.status(500).json({ success: false, message: "Error deleting report" });
   }
 });
 
@@ -897,6 +975,91 @@ app.get("/api/lecturer/ratings", authenticateToken, checkRole(["lecturer"]), asy
   } catch (err) {
     console.error("Error fetching ratings:", err);
     res.status(500).json({ success: false, message: "Error fetching ratings" });
+  }
+});
+
+// LECTURER RATES PRINCIPAL LECTURER
+app.post("/api/ratings/prl", authenticateToken, checkRole(["lecturer"]), async (req, res) => {
+  const { rating, comments } = req.body;
+  
+  try {
+    const lecturerResult = await pool.query(
+      "SELECT id, stream_id FROM lecturers WHERE username=$1",
+      [req.user.username]
+    );
+
+    if (lecturerResult.rows.length === 0) {
+      return res.status(404).json({ success: false, message: "Lecturer not found" });
+    }
+
+    const { id: lecturer_id, stream_id } = lecturerResult.rows[0];
+
+    const prlResult = await pool.query(
+      `SELECT l.id 
+       FROM lecturers l
+       JOIN users u ON l.username = u.username
+       WHERE l.stream_id = $1 AND u.role = 'prl'
+       LIMIT 1`,
+      [stream_id]
+    );
+
+    if (prlResult.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "No Principal Lecturer found for your stream" 
+      });
+    }
+
+    const prl_id = prlResult.rows[0].id;
+
+    await pool.query(
+      `INSERT INTO prl_ratings (lecturer_id, prl_id, rating, comments, created_at)
+       VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)`,
+      [lecturer_id, prl_id, rating, comments]
+    );
+
+    res.json({ success: true, message: "Rating submitted successfully" });
+  } catch (err) {
+    console.error("Error submitting PRL rating:", err);
+    res.status(500).json({ success: false, message: "Error submitting rating" });
+  }
+});
+
+// GET MY PRL INFO
+app.get("/api/lecturer/prl", authenticateToken, checkRole(["lecturer"]), async (req, res) => {
+  try {
+    const lecturerResult = await pool.query(
+      "SELECT stream_id FROM lecturers WHERE username=$1",
+      [req.user.username]
+    );
+
+    if (lecturerResult.rows.length === 0) {
+      return res.status(404).json({ success: false, message: "Lecturer not found" });
+    }
+
+    const stream_id = lecturerResult.rows[0].stream_id;
+
+    const prlResult = await pool.query(
+      `SELECT l.id, l.name, l.surname, s.name as stream_name
+       FROM lecturers l
+       JOIN users u ON l.username = u.username
+       JOIN streams s ON l.stream_id = s.id
+       WHERE l.stream_id = $1 AND u.role = 'prl'
+       LIMIT 1`,
+      [stream_id]
+    );
+
+    if (prlResult.rows.length === 0) {
+      return res.json({ 
+        success: false, 
+        message: "No Principal Lecturer assigned to your stream" 
+      });
+    }
+
+    res.json({ success: true, prl: prlResult.rows[0] });
+  } catch (err) {
+    console.error("Error fetching PRL info:", err);
+    res.status(500).json({ success: false, message: "Error fetching PRL info" });
   }
 });
 
@@ -1030,7 +1193,6 @@ app.delete("/api/users/:id", authenticateToken, checkRole(["admin"]), async (req
   }
 });
 
-
 // LECTURER PROGRAMS
 app.get("/api/lecturer/programs", authenticateToken, checkRole(["lecturer"]), async (req, res) => {
   try {
@@ -1124,134 +1286,6 @@ app.get("/api/lecturer/student-count", authenticateToken, checkRole(["lecturer"]
     res.status(500).json({ success: false, message: "Error fetching student count" });
   }
 });
-// LECTURER RATES PRINCIPAL LECTURER
-// LECTURER RATES PRINCIPAL LECTURER
-app.post("/api/ratings/prl", authenticateToken, checkRole(["lecturer"]), async (req, res) => {
-  const { rating, comments } = req.body;
-  
-  try {
-    // Get lecturer's info including their stream
-    const lecturerResult = await pool.query(
-      "SELECT id, stream_id FROM lecturers WHERE username=$1",
-      [req.user.username]
-    );
-
-    if (lecturerResult.rows.length === 0) {
-      return res.status(404).json({ success: false, message: "Lecturer not found" });
-    }
-
-    const { id: lecturer_id, stream_id } = lecturerResult.rows[0];
-
-    // Get the PRL for this stream
-    const prlResult = await pool.query(
-      `SELECT l.id 
-       FROM lecturers l
-       JOIN users u ON l.username = u.username
-       WHERE l.stream_id = $1 AND u.role = 'prl'
-       LIMIT 1`,
-      [stream_id]
-    );
-
-    if (prlResult.rows.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "No Principal Lecturer found for your stream" 
-      });
-    }
-
-    const prl_id = prlResult.rows[0].id;
-
-    // Insert rating (NO 30-DAY CHECK - removed restriction)
-    await pool.query(
-      `INSERT INTO prl_ratings (lecturer_id, prl_id, rating, comments, created_at)
-       VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)`,
-      [lecturer_id, prl_id, rating, comments]
-    );
-
-    res.json({ success: true, message: "Rating submitted successfully" });
-  } catch (err) {
-    console.error("Error submitting PRL rating:", err);
-    res.status(500).json({ success: false, message: "Error submitting rating" });
-  }
-});
-
-// GET PRL RATINGS (for Program Leader to view)
-app.get("/api/ratings/pl/prls", authenticateToken, checkRole(["pl"]), async (req, res) => {
-  try {
-    // Get all PRLs and their ratings
-    const result = await pool.query(
-      `SELECT 
-        l.id as prl_id,
-        l.name as prl_name,
-        l.surname as prl_surname,
-        s.name as stream_name,
-        AVG(pr.rating) as average_rating,
-        COUNT(pr.id) as total_ratings,
-        json_agg(
-          json_build_object(
-            'rating', pr.rating,
-            'comments', pr.comments,
-            'lecturer_name', lec.name || ' ' || lec.surname,
-            'submitted_at', pr.created_at
-          ) ORDER BY pr.created_at DESC
-        ) FILTER (WHERE pr.id IS NOT NULL) as ratings
-       FROM lecturers l
-       JOIN users u ON l.username = u.username
-       JOIN streams s ON l.stream_id = s.id
-       LEFT JOIN prl_ratings pr ON pr.prl_id = l.id
-       LEFT JOIN lecturers lec ON pr.lecturer_id = lec.id
-       WHERE u.role = 'prl'
-       GROUP BY l.id, l.name, l.surname, s.name
-       ORDER BY average_rating DESC NULLS LAST`
-    );
-
-    res.json({ 
-      success: true, 
-      ratings: result.rows
-    });
-  } catch (err) {
-    console.error("Error fetching PRL ratings:", err);
-    res.status(500).json({ success: false, message: "Error fetching PRL ratings" });
-  }
-});
-
-// GET MY PRL INFO (for lecturer to see who their PRL is)
-app.get("/api/lecturer/prl", authenticateToken, checkRole(["lecturer"]), async (req, res) => {
-  try {
-    const lecturerResult = await pool.query(
-      "SELECT stream_id FROM lecturers WHERE username=$1",
-      [req.user.username]
-    );
-
-    if (lecturerResult.rows.length === 0) {
-      return res.status(404).json({ success: false, message: "Lecturer not found" });
-    }
-
-    const stream_id = lecturerResult.rows[0].stream_id;
-
-    const prlResult = await pool.query(
-      `SELECT l.id, l.name, l.surname, s.name as stream_name
-       FROM lecturers l
-       JOIN users u ON l.username = u.username
-       JOIN streams s ON l.stream_id = s.id
-       WHERE l.stream_id = $1 AND u.role = 'prl'
-       LIMIT 1`,
-      [stream_id]
-    );
-
-    if (prlResult.rows.length === 0) {
-      return res.json({ 
-        success: false, 
-        message: "No Principal Lecturer assigned to your stream" 
-      });
-    }
-
-    res.json({ success: true, prl: prlResult.rows[0] });
-  } catch (err) {
-    console.error("Error fetching PRL info:", err);
-    res.status(500).json({ success: false, message: "Error fetching PRL info" });
-  }
-});
 
 // GET ALL LECTURERS FOR PROGRAM LEADER
 app.get("/api/pl/lecturers", authenticateToken, checkRole(["pl"]), async (req, res) => {
@@ -1307,74 +1341,11 @@ app.get("/api/pl/lecturer-ratings", authenticateToken, checkRole(["pl"]), async 
   }
 });
 
-
-// DELETE REPORT
-app.delete("/api/reports/:id", authenticateToken, checkRole(["admin", "lecturer", "prl"]), async (req, res) => {
-  const { id } = req.params;
-  
-  try {
-    // If lecturer, verify they own the report
-    if (req.user.role === 'lecturer') {
-      const lecturerResult = await pool.query(
-        "SELECT l.name || ' ' || l.surname as full_name FROM lecturers WHERE username=$1",
-        [req.user.username]
-      );
-      
-      if (lecturerResult.rows.length === 0) {
-        return res.status(404).json({ success: false, message: "Lecturer not found" });
-      }
-      
-      const reportCheck = await pool.query(
-        "SELECT id FROM reports WHERE id=$1 AND lecturername=$2",
-        [id, lecturerResult.rows[0].full_name]
-      );
-      
-      if (reportCheck.rows.length === 0) {
-        return res.status(403).json({ success: false, message: "Not authorized to delete this report" });
-      }
-    }
-    
-    // If PRL, verify report is from their stream
-    if (req.user.role === 'prl') {
-      const prlResult = await pool.query(
-        "SELECT stream_id FROM lecturers WHERE username=$1",
-        [req.user.username]
-      );
-      
-      if (prlResult.rows.length === 0) {
-        return res.status(404).json({ success: false, message: "PRL not found" });
-      }
-      
-      const reportCheck = await pool.query(
-        `SELECT r.id FROM reports r
-         JOIN streams s ON r.facultyname = s.name
-         WHERE r.id=$1 AND s.id=$2`,
-        [id, prlResult.rows[0].stream_id]
-      );
-      
-      if (reportCheck.rows.length === 0) {
-        return res.status(403).json({ success: false, message: "Not authorized to delete this report" });
-      }
-    }
-    
-    // Delete the report
-    await pool.query("DELETE FROM reports WHERE id=$1", [id]);
-    
-    res.json({ success: true, message: "Report deleted successfully" });
-  } catch (err) {
-    console.error("Error deleting report:", err);
-    res.status(500).json({ success: false, message: "Error deleting report" });
-  }
-});
-
-// Add this endpoint to your server.js file after the existing PL endpoints
-
 // ASSIGN MODULE TO LECTURER (Program Leader only)
 app.post("/api/pl/assign-module", authenticateToken, checkRole(["pl"]), async (req, res) => {
   const { lecturer_id, module_id } = req.body;
   
   try {
-    // Validate inputs
     if (!lecturer_id || !module_id) {
       return res.status(400).json({ 
         success: false, 
@@ -1382,7 +1353,6 @@ app.post("/api/pl/assign-module", authenticateToken, checkRole(["pl"]), async (r
       });
     }
 
-    // Check if lecturer exists
     const lecturerCheck = await pool.query(
       "SELECT id, stream_id FROM lecturers WHERE id = $1",
       [lecturer_id]
@@ -1397,7 +1367,6 @@ app.post("/api/pl/assign-module", authenticateToken, checkRole(["pl"]), async (r
 
     const lecturer = lecturerCheck.rows[0];
 
-    // Check if module exists and belongs to the lecturer's stream
     const moduleCheck = await pool.query(
       "SELECT id, stream_id, name, code FROM modules WHERE id = $1",
       [module_id]
@@ -1412,7 +1381,6 @@ app.post("/api/pl/assign-module", authenticateToken, checkRole(["pl"]), async (r
 
     const module = moduleCheck.rows[0];
 
-    // Verify module belongs to lecturer's stream
     if (module.stream_id !== lecturer.stream_id) {
       return res.status(400).json({ 
         success: false, 
@@ -1420,7 +1388,6 @@ app.post("/api/pl/assign-module", authenticateToken, checkRole(["pl"]), async (r
       });
     }
 
-    // Update lecturer's module assignment
     await pool.query(
       "UPDATE lecturers SET module_id = $1 WHERE id = $2",
       [module_id, lecturer_id]
@@ -1451,7 +1418,6 @@ app.post("/api/pl/remove-module", authenticateToken, checkRole(["pl"]), async (r
       });
     }
 
-    // Check if lecturer exists
     const lecturerCheck = await pool.query(
       "SELECT id FROM lecturers WHERE id = $1",
       [lecturer_id]
@@ -1464,7 +1430,6 @@ app.post("/api/pl/remove-module", authenticateToken, checkRole(["pl"]), async (r
       });
     }
 
-    // Remove module assignment
     await pool.query(
       "UPDATE lecturers SET module_id = NULL WHERE id = $1",
       [lecturer_id]
@@ -1478,7 +1443,10 @@ app.post("/api/pl/remove-module", authenticateToken, checkRole(["pl"]), async (r
     console.error("Error removing module:", err);
     res.status(500).json({ 
       success: false, 
-      message: "Error
+      message: "Error removing module assignment"
+    });
+  }
+});
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, async () => {
