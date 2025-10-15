@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { exportReportsToExcel, exportPRLRatingsToExcel } from "../utils/excelExport";
 import API_BASE_URL from '../config/api';
 import "./ProgramLeader.css";
@@ -14,6 +14,11 @@ export default function ProgramLeader({ user }) {
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  
+  // Module assignment states
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [selectedLecturer, setSelectedLecturer] = useState(null);
+  const [selectedModuleId, setSelectedModuleId] = useState("");
 
   const authHeaders = () => ({
     "Content-Type": "application/json",
@@ -123,6 +128,48 @@ export default function ProgramLeader({ user }) {
     }
   };
 
+  const handleAssignModule = async () => {
+    if (!selectedLecturer || !selectedModuleId) {
+      setError("Please select a module");
+      return;
+    }
+
+    try {
+      const res = await fetch(API_BASE_URL + "/api/pl/assign-module", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          lecturer_id: selectedLecturer.id,
+          module_id: selectedModuleId
+        })
+      });
+
+      const data = await res.json();
+      
+      if (data.success) {
+        setMsg(`Module successfully assigned to ${selectedLecturer.name} ${selectedLecturer.surname}`);
+        setShowAssignModal(false);
+        setSelectedLecturer(null);
+        setSelectedModuleId("");
+        fetchLecturers(); // Refresh the lecturer list
+        setTimeout(() => setMsg(""), 3000);
+      } else {
+        setError(data.message || "Failed to assign module");
+        setTimeout(() => setError(""), 3000);
+      }
+    } catch (err) {
+      console.error("Error assigning module:", err);
+      setError("Error assigning module");
+      setTimeout(() => setError(""), 3000);
+    }
+  };
+
+  const openAssignModal = (lecturer) => {
+    setSelectedLecturer(lecturer);
+    setSelectedModuleId("");
+    setShowAssignModal(true);
+  };
+
   const handleExportReports = () => {
     if (filteredReports.length === 0) {
       alert("No reports to export");
@@ -167,6 +214,17 @@ export default function ProgramLeader({ user }) {
     return (
       l.lecturer_name?.toLowerCase().includes(search) ||
       l.lecturer_surname?.toLowerCase().includes(search) ||
+      l.stream_name?.toLowerCase().includes(search)
+    );
+  });
+
+  const filteredLecturers = lecturers.filter(l => {
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
+    return (
+      l.name?.toLowerCase().includes(search) ||
+      l.surname?.toLowerCase().includes(search) ||
+      l.username?.toLowerCase().includes(search) ||
       l.stream_name?.toLowerCase().includes(search)
     );
   });
@@ -369,7 +427,26 @@ export default function ProgramLeader({ user }) {
       {activeTab === "lecturers" && (
         <div className="lecturers-section">
           <h2>All Lecturers</h2>
-          {lecturers.length === 0 ? (
+          
+          <div style={{ marginBottom: '1rem' }}>
+            <input
+              type="text"
+              placeholder="Search by name, username, or stream..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '12px',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                borderRadius: '8px',
+                background: 'rgba(255, 255, 255, 0.1)',
+                color: '#ffffff',
+                fontSize: '1rem'
+              }}
+            />
+          </div>
+
+          {filteredLecturers.length === 0 ? (
             <p>No lecturers found.</p>
           ) : (
             <table>
@@ -380,10 +457,11 @@ export default function ProgramLeader({ user }) {
                   <th>Stream</th>
                   <th>Module</th>
                   <th>Role</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {lecturers.map(l => (
+                {filteredLecturers.map(l => (
                   <tr key={l.id}>
                     <td>{l.name} {l.surname}</td>
                     <td>{l.username}</td>
@@ -394,6 +472,22 @@ export default function ProgramLeader({ user }) {
                         {l.role === 'prl' ? 'Principal Lecturer' : 
                          l.role === 'pl' ? 'Program Leader' : 'Lecturer'}
                       </span>
+                    </td>
+                    <td>
+                      <button
+                        onClick={() => openAssignModal(l)}
+                        style={{
+                          background: '#2196F3',
+                          color: 'white',
+                          padding: '6px 12px',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '0.9rem'
+                        }}
+                      >
+                        Assign Module
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -542,6 +636,97 @@ export default function ProgramLeader({ user }) {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Module Assignment Modal */}
+      {showAssignModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
+            padding: '2rem',
+            borderRadius: '12px',
+            maxWidth: '500px',
+            width: '90%',
+            border: '1px solid rgba(255, 255, 255, 0.2)'
+          }}>
+            <h3 style={{ marginTop: 0, color: '#fff' }}>
+              Assign Module to {selectedLecturer?.name} {selectedLecturer?.surname}
+            </h3>
+            
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', color: '#fff' }}>
+                Select Module:
+              </label>
+              <select
+                value={selectedModuleId}
+                onChange={(e) => setSelectedModuleId(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  color: '#fff',
+                  fontSize: '1rem'
+                }}
+              >
+                <option value="">Choose a module...</option>
+                {modules
+                  .filter(m => m.stream_id === selectedLecturer?.stream_id)
+                  .map(module => (
+                    <option key={module.id} value={module.id}>
+                      {module.code} - {module.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => {
+                  setShowAssignModal(false);
+                  setSelectedLecturer(null);
+                  setSelectedModuleId("");
+                }}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: '6px',
+                  border: '1px solid rgba(255, 255, 255, 0.3)',
+                  background: 'transparent',
+                  color: '#fff',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAssignModule}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: '#4CAF50',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontWeight: '600'
+                }}
+              >
+                Assign Module
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
