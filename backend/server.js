@@ -1367,6 +1367,119 @@ app.delete("/api/reports/:id", authenticateToken, checkRole(["admin", "lecturer"
   }
 });
 
+// Add this endpoint to your server.js file after the existing PL endpoints
+
+// ASSIGN MODULE TO LECTURER (Program Leader only)
+app.post("/api/pl/assign-module", authenticateToken, checkRole(["pl"]), async (req, res) => {
+  const { lecturer_id, module_id } = req.body;
+  
+  try {
+    // Validate inputs
+    if (!lecturer_id || !module_id) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Lecturer ID and Module ID are required" 
+      });
+    }
+
+    // Check if lecturer exists
+    const lecturerCheck = await pool.query(
+      "SELECT id, stream_id FROM lecturers WHERE id = $1",
+      [lecturer_id]
+    );
+
+    if (lecturerCheck.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "Lecturer not found" 
+      });
+    }
+
+    const lecturer = lecturerCheck.rows[0];
+
+    // Check if module exists and belongs to the lecturer's stream
+    const moduleCheck = await pool.query(
+      "SELECT id, stream_id, name, code FROM modules WHERE id = $1",
+      [module_id]
+    );
+
+    if (moduleCheck.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "Module not found" 
+      });
+    }
+
+    const module = moduleCheck.rows[0];
+
+    // Verify module belongs to lecturer's stream
+    if (module.stream_id !== lecturer.stream_id) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Module does not belong to the lecturer's stream" 
+      });
+    }
+
+    // Update lecturer's module assignment
+    await pool.query(
+      "UPDATE lecturers SET module_id = $1 WHERE id = $2",
+      [module_id, lecturer_id]
+    );
+
+    res.json({ 
+      success: true, 
+      message: `Module ${module.code} - ${module.name} successfully assigned to lecturer` 
+    });
+  } catch (err) {
+    console.error("Error assigning module:", err);
+    res.status(500).json({ 
+      success: false, 
+      message: "Error assigning module" 
+    });
+  }
+});
+
+// REMOVE MODULE FROM LECTURER (Program Leader only)
+app.post("/api/pl/remove-module", authenticateToken, checkRole(["pl"]), async (req, res) => {
+  const { lecturer_id } = req.body;
+  
+  try {
+    if (!lecturer_id) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Lecturer ID is required" 
+      });
+    }
+
+    // Check if lecturer exists
+    const lecturerCheck = await pool.query(
+      "SELECT id FROM lecturers WHERE id = $1",
+      [lecturer_id]
+    );
+
+    if (lecturerCheck.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "Lecturer not found" 
+      });
+    }
+
+    // Remove module assignment
+    await pool.query(
+      "UPDATE lecturers SET module_id = NULL WHERE id = $1",
+      [lecturer_id]
+    );
+
+    res.json({ 
+      success: true, 
+      message: "Module assignment removed successfully" 
+    });
+  } catch (err) {
+    console.error("Error removing module:", err);
+    res.status(500).json({ 
+      success: false, 
+      message: "Error
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, async () => {
   try {
