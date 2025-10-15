@@ -20,6 +20,14 @@ export default function ProgramLeader({ user }) {
   const [selectedLecturer, setSelectedLecturer] = useState(null);
   const [selectedModuleId, setSelectedModuleId] = useState("");
 
+  // Stream/Module management states
+  const [showStreamModal, setShowStreamModal] = useState(false);
+  const [showModuleModal, setShowModuleModal] = useState(false);
+  const [editingStream, setEditingStream] = useState(null);
+  const [editingModule, setEditingModule] = useState(null);
+  const [streamForm, setStreamForm] = useState({ name: "" });
+  const [moduleForm, setModuleForm] = useState({ name: "", code: "", stream_id: "" });
+
   const authHeaders = () => ({
     "Content-Type": "application/json",
     Authorization: `Bearer ${user.token}`
@@ -32,30 +40,24 @@ export default function ProgramLeader({ user }) {
     fetchLecturers();
   }, []);
 
-  // Fetch PRL reports
   useEffect(() => {
     if (activeTab === "reports") {
       fetchReports();
-    }
-  }, [activeTab]);
-
-  // Fetch PRL ratings from lecturers
-  useEffect(() => {
-    if (activeTab === "prl-ratings") {
+    } else if (activeTab === "prl-ratings") {
       fetchPRLRatings();
-    }
-  }, [activeTab]);
-
-  // Fetch lecturer ratings from students
-  useEffect(() => {
-    if (activeTab === "lecturer-ratings") {
+    } else if (activeTab === "lecturer-ratings") {
       fetchLecturerRatings();
+    } else if (activeTab === "management") {
+      fetchStreams();
+      fetchModules();
     }
   }, [activeTab]);
 
   const fetchStreams = async () => {
     try {
-      const res = await fetch(API_BASE_URL + "/api/streams-public");
+      const res = await fetch(API_BASE_URL + "/api/pl/streams", {
+        headers: authHeaders()
+      });
       const data = await res.json();
       setStreams(data.streams || []);
     } catch (err) {
@@ -65,7 +67,9 @@ export default function ProgramLeader({ user }) {
 
   const fetchModules = async () => {
     try {
-      const res = await fetch(API_BASE_URL + "/api/modules-public");
+      const res = await fetch(API_BASE_URL + "/api/pl/modules", {
+        headers: authHeaders()
+      });
       const data = await res.json();
       setModules(data.modules || []);
     } catch (err) {
@@ -128,6 +132,194 @@ export default function ProgramLeader({ user }) {
     }
   };
 
+  // Stream Management Functions
+  const handleCreateStream = async () => {
+    if (!streamForm.name.trim()) {
+      setError("Stream name is required");
+      setTimeout(() => setError(""), 3000);
+      return;
+    }
+
+    try {
+      const res = await fetch(API_BASE_URL + "/api/pl/streams", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify(streamForm)
+      });
+
+      const data = await res.json();
+      
+      if (data.success) {
+        setMsg("Stream created successfully");
+        setShowStreamModal(false);
+        setStreamForm({ name: "" });
+        fetchStreams();
+        setTimeout(() => setMsg(""), 3000);
+      } else {
+        setError(data.message || "Failed to create stream");
+        setTimeout(() => setError(""), 3000);
+      }
+    } catch (err) {
+      console.error("Error creating stream:", err);
+      setError("Error creating stream");
+      setTimeout(() => setError(""), 3000);
+    }
+  };
+
+  const handleUpdateStream = async () => {
+    if (!streamForm.name.trim()) {
+      setError("Stream name is required");
+      setTimeout(() => setError(""), 3000);
+      return;
+    }
+
+    try {
+      const res = await fetch(API_BASE_URL + `/api/pl/streams/${editingStream.id}`, {
+        method: "PUT",
+        headers: authHeaders(),
+        body: JSON.stringify(streamForm)
+      });
+
+      const data = await res.json();
+      
+      if (data.success) {
+        setMsg("Stream updated successfully");
+        setShowStreamModal(false);
+        setEditingStream(null);
+        setStreamForm({ name: "" });
+        fetchStreams();
+        setTimeout(() => setMsg(""), 3000);
+      } else {
+        setError(data.message || "Failed to update stream");
+        setTimeout(() => setError(""), 3000);
+      }
+    } catch (err) {
+      console.error("Error updating stream:", err);
+      setError("Error updating stream");
+      setTimeout(() => setError(""), 3000);
+    }
+  };
+
+  const handleDeleteStream = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this stream?")) return;
+
+    try {
+      const res = await fetch(API_BASE_URL + `/api/pl/streams/${id}`, {
+        method: "DELETE",
+        headers: authHeaders()
+      });
+
+      const data = await res.json();
+      
+      if (data.success) {
+        setMsg("Stream deleted successfully");
+        fetchStreams();
+        setTimeout(() => setMsg(""), 3000);
+      } else {
+        setError(data.message || "Failed to delete stream");
+        setTimeout(() => setError(""), 3000);
+      }
+    } catch (err) {
+      console.error("Error deleting stream:", err);
+      setError("Error deleting stream");
+      setTimeout(() => setError(""), 3000);
+    }
+  };
+
+  // Module Management Functions
+  const handleCreateModule = async () => {
+    if (!moduleForm.name.trim() || !moduleForm.code.trim() || !moduleForm.stream_id) {
+      setError("All fields are required");
+      setTimeout(() => setError(""), 3000);
+      return;
+    }
+
+    try {
+      const res = await fetch(API_BASE_URL + "/api/pl/modules", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify(moduleForm)
+      });
+
+      const data = await res.json();
+      
+      if (data.success) {
+        setMsg("Module created successfully");
+        setShowModuleModal(false);
+        setModuleForm({ name: "", code: "", stream_id: "" });
+        fetchModules();
+        setTimeout(() => setMsg(""), 3000);
+      } else {
+        setError(data.message || "Failed to create module");
+        setTimeout(() => setError(""), 3000);
+      }
+    } catch (err) {
+      console.error("Error creating module:", err);
+      setError("Error creating module");
+      setTimeout(() => setError(""), 3000);
+    }
+  };
+
+  const handleUpdateModule = async () => {
+    if (!moduleForm.name.trim() || !moduleForm.code.trim() || !moduleForm.stream_id) {
+      setError("All fields are required");
+      setTimeout(() => setError(""), 3000);
+      return;
+    }
+
+    try {
+      const res = await fetch(API_BASE_URL + `/api/pl/modules/${editingModule.id}`, {
+        method: "PUT",
+        headers: authHeaders(),
+        body: JSON.stringify(moduleForm)
+      });
+
+      const data = await res.json();
+      
+      if (data.success) {
+        setMsg("Module updated successfully");
+        setShowModuleModal(false);
+        setEditingModule(null);
+        setModuleForm({ name: "", code: "", stream_id: "" });
+        fetchModules();
+        setTimeout(() => setMsg(""), 3000);
+      } else {
+        setError(data.message || "Failed to update module");
+        setTimeout(() => setError(""), 3000);
+      }
+    } catch (err) {
+      console.error("Error updating module:", err);
+      setError("Error updating module");
+      setTimeout(() => setError(""), 3000);
+    }
+  };
+
+  const handleDeleteModule = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this module?")) return;
+
+    try {
+      const res = await fetch(API_BASE_URL + `/api/pl/modules/${id}`, {
+        method: "DELETE",
+        headers: authHeaders()
+      });
+
+      const data = await res.json();
+      
+      if (data.success) {
+        setMsg("Module deleted successfully");
+        fetchModules();
+        setTimeout(() => setMsg(""), 3000);
+      } else {
+        setError(data.message || "Failed to delete module");
+        setTimeout(() => setError(""), 3000);
+      }
+    } catch (err) {
+      console.error("Error deleting module:", err);
+      setError("Error deleting module");
+      setTimeout(() => setError(""), 3000);
+    }
+  };
+
   const handleAssignModule = async () => {
     if (!selectedLecturer || !selectedModuleId) {
       setError("Please select a module");
@@ -151,7 +343,7 @@ export default function ProgramLeader({ user }) {
         setShowAssignModal(false);
         setSelectedLecturer(null);
         setSelectedModuleId("");
-        fetchLecturers(); // Refresh the lecturer list
+        fetchLecturers();
         setTimeout(() => setMsg(""), 3000);
       } else {
         setError(data.message || "Failed to assign module");
@@ -168,6 +360,32 @@ export default function ProgramLeader({ user }) {
     setSelectedLecturer(lecturer);
     setSelectedModuleId("");
     setShowAssignModal(true);
+  };
+
+  const openStreamModal = (stream = null) => {
+    if (stream) {
+      setEditingStream(stream);
+      setStreamForm({ name: stream.name });
+    } else {
+      setEditingStream(null);
+      setStreamForm({ name: "" });
+    }
+    setShowStreamModal(true);
+  };
+
+  const openModuleModal = (module = null) => {
+    if (module) {
+      setEditingModule(module);
+      setModuleForm({ 
+        name: module.name, 
+        code: module.code, 
+        stream_id: module.stream_id 
+      });
+    } else {
+      setEditingModule(null);
+      setModuleForm({ name: "", code: "", stream_id: "" });
+    }
+    setShowModuleModal(true);
   };
 
   const handleExportReports = () => {
@@ -229,6 +447,21 @@ export default function ProgramLeader({ user }) {
     );
   });
 
+  const filteredStreams = streams.filter(s => {
+    if (!searchTerm) return true;
+    return s.name?.toLowerCase().includes(searchTerm.toLowerCase());
+  });
+
+  const filteredModules = modules.filter(m => {
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
+    return (
+      m.name?.toLowerCase().includes(search) ||
+      m.code?.toLowerCase().includes(search) ||
+      m.stream_name?.toLowerCase().includes(search)
+    );
+  });
+
   return (
     <div className="page-container">
       <h1>Program Leader Portal</h1>
@@ -249,6 +482,12 @@ export default function ProgramLeader({ user }) {
           onClick={() => setActiveTab('monitoring')}
         >
           Monitoring
+        </button>
+        <button 
+          className={`tab ${activeTab === 'management' ? 'active' : ''}`}
+          onClick={() => setActiveTab('management')}
+        >
+          Management
         </button>
         <button 
           className={`tab ${activeTab === 'reports' ? 'active' : ''}`}
@@ -281,6 +520,200 @@ export default function ProgramLeader({ user }) {
           Lecturer Ratings
         </button>
       </div>
+
+      {activeTab === "management" && (
+        <div className="management-section">
+          <h2>Streams & Modules Management</h2>
+          
+          {/* Streams Section */}
+          <div className="management-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h3>Streams</h3>
+              <button
+                onClick={() => openStreamModal()}
+                style={{
+                  background: '#4CAF50',
+                  color: 'white',
+                  padding: '10px 20px',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: '600'
+                }}
+              >
+                + Add Stream
+              </button>
+            </div>
+
+            <input
+              type="text"
+              placeholder="Search streams..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '12px',
+                marginBottom: '1rem',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                borderRadius: '8px',
+                background: 'rgba(255, 255, 255, 0.1)',
+                color: '#ffffff',
+                fontSize: '1rem'
+              }}
+            />
+
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Modules</th>
+                  <th>Lecturers</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredStreams.length === 0 ? (
+                  <tr>
+                    <td colSpan="4">No streams found</td>
+                  </tr>
+                ) : (
+                  filteredStreams.map(stream => (
+                    <tr key={stream.id}>
+                      <td><strong>{stream.name}</strong></td>
+                      <td>{stream.module_count || 0}</td>
+                      <td>{stream.lecturer_count || 0}</td>
+                      <td>
+                        <button
+                          onClick={() => openStreamModal(stream)}
+                          style={{
+                            background: '#2196F3',
+                            color: 'white',
+                            padding: '6px 12px',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            marginRight: '8px'
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteStream(stream.id)}
+                          style={{
+                            background: '#f44336',
+                            color: 'white',
+                            padding: '6px 12px',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Modules Section */}
+          <div className="management-card" style={{ marginTop: '2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h3>Modules</h3>
+              <button
+                onClick={() => openModuleModal()}
+                style={{
+                  background: '#4CAF50',
+                  color: 'white',
+                  padding: '10px 20px',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: '600'
+                }}
+              >
+                + Add Module
+              </button>
+            </div>
+
+            <input
+              type="text"
+              placeholder="Search modules..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '12px',
+                marginBottom: '1rem',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                borderRadius: '8px',
+                background: 'rgba(255, 255, 255, 0.1)',
+                color: '#ffffff',
+                fontSize: '1rem'
+              }}
+            />
+
+            <table>
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Name</th>
+                  <th>Stream</th>
+                  <th>Assigned Lecturers</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredModules.length === 0 ? (
+                  <tr>
+                    <td colSpan="5">No modules found</td>
+                  </tr>
+                ) : (
+                  filteredModules.map(module => (
+                    <tr key={module.id}>
+                      <td><strong>{module.code}</strong></td>
+                      <td>{module.name}</td>
+                      <td>{module.stream_name}</td>
+                      <td>{module.assigned_lecturers || 0}</td>
+                      <td>
+                        <button
+                          onClick={() => openModuleModal(module)}
+                          style={{
+                            background: '#2196F3',
+                            color: 'white',
+                            padding: '6px 12px',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            marginRight: '8px'
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteModule(module.id)}
+                          style={{
+                            background: '#f44336',
+                            color: 'white',
+                            padding: '6px 12px',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {activeTab === "monitoring" && (
         <div className="monitoring-section">
@@ -636,6 +1069,221 @@ export default function ProgramLeader({ user }) {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Stream Modal */}
+      {showStreamModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
+            padding: '2rem',
+            borderRadius: '12px',
+            maxWidth: '500px',
+            width: '90%',
+            border: '1px solid rgba(255, 255, 255, 0.2)'
+          }}>
+            <h3 style={{ marginTop: 0, color: '#fff' }}>
+              {editingStream ? 'Edit Stream' : 'Add New Stream'}
+            </h3>
+            
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', color: '#fff' }}>
+                Stream Name:
+              </label>
+              <input
+                type="text"
+                value={streamForm.name}
+                onChange={(e) => setStreamForm({ name: e.target.value })}
+                placeholder="e.g., Information Systems"
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  color: '#fff',
+                  fontSize: '1rem'
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => {
+                  setShowStreamModal(false);
+                  setEditingStream(null);
+                  setStreamForm({ name: '' });
+                }}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: '6px',
+                  border: '1px solid rgba(255, 255, 255, 0.3)',
+                  background: 'transparent',
+                  color: '#fff',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={editingStream ? handleUpdateStream : handleCreateStream}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: '#4CAF50',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontWeight: '600'
+                }}
+              >
+                {editingStream ? 'Update' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Module Modal */}
+      {showModuleModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
+            padding: '2rem',
+            borderRadius: '12px',
+            maxWidth: '500px',
+            width: '90%',
+            border: '1px solid rgba(255, 255, 255, 0.2)'
+          }}>
+            <h3 style={{ marginTop: 0, color: '#fff' }}>
+              {editingModule ? 'Edit Module' : 'Add New Module'}
+            </h3>
+            
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', color: '#fff' }}>
+                Module Code:
+              </label>
+              <input
+                type="text"
+                value={moduleForm.code}
+                onChange={(e) => setModuleForm({...moduleForm, code: e.target.value})}
+                placeholder="e.g., IS301"
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  color: '#fff',
+                  fontSize: '1rem'
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', color: '#fff' }}>
+                Module Name:
+              </label>
+              <input
+                type="text"
+                value={moduleForm.name}
+                onChange={(e) => setModuleForm({...moduleForm, name: e.target.value})}
+                placeholder="e.g., Database Management Systems"
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  color: '#fff',
+                  fontSize: '1rem'
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', color: '#fff' }}>
+                Stream:
+              </label>
+              <select
+                value={moduleForm.stream_id}
+                onChange={(e) => setModuleForm({...moduleForm, stream_id: e.target.value})}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  color: '#fff',
+                  fontSize: '1rem'
+                }}
+              >
+                <option value="">Select a stream...</option>
+                {streams.map(stream => (
+                  <option key={stream.id} value={stream.id}>
+                    {stream.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => {
+                  setShowModuleModal(false);
+                  setEditingModule(null);
+                  setModuleForm({ name: '', code: '', stream_id: '' });
+                }}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: '6px',
+                  border: '1px solid rgba(255, 255, 255, 0.3)',
+                  background: 'transparent',
+                  color: '#fff',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={editingModule ? handleUpdateModule : handleCreateModule}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: '#4CAF50',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontWeight: '600'
+                }}
+              >
+                {editingModule ? 'Update' : 'Create'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
